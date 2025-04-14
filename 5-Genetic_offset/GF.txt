@@ -1,0 +1,20 @@
+#GF
+library(gradientForest) #梯度森林包
+setwd("D:/台湾杉/GF")
+dwjy <- read.csv("all_dwjy.csv", header = T,row.names = "pop")
+env <- read.csv("bio1_19.csv", header = T)
+#gf_dlc <- read.csv("candidate.csv",header = T,row.names = "Pop")  #加载环境数据、等位基因频率
+#dwjy <- gf_dlc[,grep("snp",names(gf_dlc))]  #提取包含candSNPs的列，用到的等位基因频率数据
+#env <- gf_dlc[,grep("bio",names(gf_dlc))]#提取第一列、第二列和包含bio的列,这里也可以不提取第一二列
+#env <- env[,c(2,5,9,12,15,17)]
+#dwjy <- scale(dwjy, center = T,scale = T)
+#bioclimatic <- paste("bio",1:19,sep = "")  #生成向量(bio_1, ..., bio_19)
+#is.vector(bioclimatic)
+#bioclimatic
+maxLevel <- log2(0.368*nrow(dwjy)/2) # 固定公式 log2（0.368*居群数/2）
+#envandsnp <- cbind(env[,bioclimatic],gf_dlc)
+gf_result <- gradientForest(cbind(env, dwjy), #合并环境数据、等位基因频率
+                            predictor.vars=colnames(env), #预测变量为环境数据
+                            response.vars=colnames(dwjy), ntree=500,  #响应变量为等位基因频率
+                            maxLevel=maxLevel, trace=T, corr.threshold=0.50) # 决策树默认500，相关性阈值默认0.5
+plot(gf_result, plot.type="Overall.Importance")

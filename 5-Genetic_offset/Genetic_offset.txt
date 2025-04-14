@@ -1,0 +1,108 @@
+library(gradientForest)
+library(MaizePal)
+gfData <- read.table("gradient_forest_input.csv",header =
+                       T,sep="\t",row.names = "pop")  # 加载环境数据、等位基因频率
+candidate <- gfData[,grep("candSNPs",names(gfData))]  # 提取包含candSNPs的列，等位基因频率
+present <- gfData[,c(1,2,grep("bio",names(gfData)))]  # 提取第一列、第二列和包含bio的列，即坐标和生物气候数据
+bioclimatic <- paste("bio_",1:19,sep = "")  # 生成向量(bio_1, ..., bio_19)
+maxLevel <- log2(0.368*nrow(candidate)/2   )# 固定公式 log2（0.368*居群数/2）
+gf_candidate <- gradientForest(cbind(present[,bioclimatic], candidate),  #合并环境数据、等位基因频率
+      predictor.vars=colnames(present[,bioclimatic]),  #预测变量为环境数据
+      response.vars=colnames(candidate), ntree=500,    #响应变量为等位基因频率
+      maxLevel=maxLevel, trace=T, corr.threshold=0.50)  #决策树默认500，相关性阈值0.5/0.7
+pdf(file="picture/gf_candidate01.pdf") #生成空的PDF文件
+plot(gf_candidate, plot.type = "Overall.Importance", col=c(rep("grey",15),MaizePal::maize_pal("HighlandMAGIC", 4) ),
+     las=2,cex.names=0.8) #生成重要值排序
+dev.off()  #保存生成的结果
+write.table(gf_candidate$Y, file="result/gf_candidate.txt")
+write.table(gf_candidate$X, file="result/all_gf_X.txt")
+write.table(gf_candidate$imp.rsq, file="result/all_gf_impRsq.txt")
+write.table(gf_candidate$result, file="result/all_gf_result.txt")
+write.table(gf_candidate$res.u, file="result/all_gf_res_u.txt")
+write.table(gf_candidate$res, file="result/all_gf_res.txt")
+
+#splits density plots 分割密度图
+pdf(file="picture/all_splitsdensityplots.pdf")
+plot(gf_candidate, plot.type="S", imp.vars= bioclimatic, leg.posn="topright", 
+     cex.legend=0.4, cex.axis=0.6, cex.lab=0.7, line.ylab=0.9, 
+     par.args=list(mgp=c(1.5, 0.5, 0), mar=c(3.1,1.5,0.1,1)))
+dev.off()
+#speciescumulativeplot #the legend identifies the top 5 most responsive SNPs for each predictor图例显示了每个预测因子的前5个最具响应性的snp
+pdf(file="picture/all_speciescumulativeplot01.pdf")
+plot(gf_candidate, plot.type="Cumulative.Importance", imp.vars= bioclimatic, show.overall=T, 
+                    legend=T,common.scale=T,leg.posn="topleft", leg.nspecies=5, cex.lab=0.7, cex.legend=0.4, 
+                    cex.axis=0.6, line.ylab=0.9, par.args=list(mgp=c(1.5, 0.5, 0), mar=c(3.1,1.5,0.1,1),omi=c(0,0.3,0,0)))
+dev.off()
+#predictorcumulative #show cumulative change in overall composition of the community, where changes occur on the gradient显示群落整体（环境因子）组成的累积变化，其中变化发生在梯度上
+pdf(file="picture/all_predictorcumulative.pdf")
+plot(gf_candidate, plot.type="C", imp.vars= bioclimatic, show.species=F, 
+     common.scale=T, cex.axis=0.6, cex.lab=0.7, line.ylab=0.9, par.args=list(mgp=c(1.5, 0.5, 0), 
+                                  mar=c(2.5,1.0,0.1,0.5), omi=c(0,0.3,0,0)))
+dev.off()
+#R2
+pdf(file="picture/all_R2.pdf")
+plot(gf_candidate, plot.type="P", show.names=F, horizontal=F, cex.axis=1, cex.labels=0.7, line=2.5)
+dev.off()
+
+###PC-plot
+head(greengrid)  #研究区域所有栅格的坐标点及每个坐标点的19个气候数据
+dim(greengrid)
+all_tgrid=cbind(greengrid[,c("lon","lat")], predict(gf_candidate, greengrid[,3:21])) #基于梯度森林计算结果，量化环境梯度
+
+n<-sum(is.na(all_tgrid)) #
+Trns_grid <- na.omit(all_tgrid) #
+n<-sum(is.na(Trns_grid)) #
+n<-sum(is.na(all_tgrid))
+Trns_grid <- na.omit(all_tgrid)
+n<-sum(is.na(Trns_grid))
+#基于梯度森林结果重要值排序和排除自相关筛选出的环境因子
+all_PCs <- prcomp(Trns_grid[,c("bio_2","bio_5","bio_9","bio_12","bio_15","bio_17")],center=TRUE, scale.=FALSE)
+summary(all_PCs)
+#set up a colour palette for the mapping 设置颜色
+a1 <- all_PCs$x[,1]
+a2 <- all_PCs$x[,2]
+a3 <- all_PCs$x[,3]
+r <- a1+a2
+g <- -a2
+b <- a3+a2-a1
+r <- (r-min(r)) / (max(r)-min(r)) * 255
+g <- (g-min(g)) / (max(g)-min(g)) * 255
+b <- (b-min(b)) / (max(b)-min(b)) * 255
+grid <- greengrid[,c("lon","lat")]
+grid$R=r
+grid$G=g
+grid$B=b
+nvs <- dim(all_PCs$rotation)[1]
+vec <- c("bio_2","bio_5","bio_9","bio_12","bio_15","bio_17")
+lv <- length(vec)
+vind <- rownames(all_PCs$rotation) %in% vec
+scal <- 60
+xrng <- range(all_PCs$x[,1], all_PCs$rotation[,1]/scal)*1.1
+yrng <- range(all_PCs$x[,2], all_PCs$rotation[,2]/scal)*1.1
+pdf(file="picture/all_PCplot02.pdf")
+plot((all_PCs$x[,1:2]), xlim=xrng, ylim=yrng, pch=".", cex=7, col=rgb(r,g,b, max = 255), asp=1)
+arrows(rep(0,lv), rep(0,lv), all_PCs$rotation[,1]/scal, all_PCs$rotation[,2]/scal, length = 0.1)
+jit <- 0.0015
+text(all_PCs$rotation[,1]/scal+jit*sign(all_PCs$rotation[,1]), all_PCs$rotation[,2]/scal+jit*sign(all_PCs$rotation[,2]), labels = vec)
+dev.off()
+
+pdf("picture/Map2.pdf")
+green.pred <- predict(gf_candidate, fut[,c("bio_2","bio_5","bio_9","bio_12","bio_15","bio_17")])
+plot(Trns_grid[, c("lon", "lat")], pch=15,cex=1.0,asp=1,col=rgb(r,g,b, max=255),main="SNP turnover in Q rugosa")
+dev.off()
+#export map for use in ArcGIS 使用arcgis导出地图
+greencols=rgb(r,g,b,max=255)
+greencols2=col2rgb(greencols)
+greencols3=t(greencols2)
+gradients=cbind(Trns_grid[,1:2],greencols3)
+gradients$color=greencols
+write.csv(gradients,file="result/all_gradients4arcgis03.csv",row.names=F,quote=F)
+all_tgrid=cbind(greengrid[,c("lon","lat")], predict(gf_candidate,greengrid[,3:21])) #基于梯度森林计算结果，量化环境梯度（当前）
+##### genetic_offset  遗传偏移
+head(fut)  #未来的气候数据（分布范围内所有栅格）
+future_all=cbind(fut[,c("lon","lat")], predict(gf_candidate,fut[,3:21])) #基于梯度森林计算结果，量化环境梯度（未来）
+genOffsetAll<-sqrt((future_all[,3]-all_tgrid[,3])^2+(future_all[,4]-all_tgrid[,4])^2+(future_all[,5]-all_tgrid[,5])^2+(future_all[,6]-all_tgrid[,6])^2+(future_all[,7]-all_tgrid[,7])^2+(future_all[,8]-all_tgrid[,8])^2+(future_all[,9]-all_tgrid[,9])^2+(future_all[,10]-all_tgrid[,10])^2+(future_all[,11]-all_tgrid[,11])^2+(future_all[,12]-all_tgrid[,12])^2+(future_all[,13]-all_tgrid[,13])^2+(future_all[,14]-all_tgrid[,14])^2+(future_all[,15]-all_tgrid[,15])^2+(future_all[,16]-all_tgrid[,16])^2+(future_all[,17]-all_tgrid[,17])^2+(future_all[,18]-all_tgrid[,18])^2+(future_all[,19]-all_tgrid[,19])^2+(future_all[,20]-all_tgrid[,20])^2+(future_all[,21]-all_tgrid[,21])^2)
+#genOffsetAll  遗传偏移计算
+Offset=cbind(future_all[,c("lon","lat")],genOffsetAll) #坐标点和遗传偏移值合并
+colnames(Offset)[3]<-"offset"  #修改遗传偏移计算结果列名为“offest”
+write.csv(Offset, "data_2100_24505.csv", quote=F, row.names=T)  #保存遗传偏移结果，导入arcgis输出结果

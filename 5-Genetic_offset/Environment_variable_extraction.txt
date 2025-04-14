@@ -1,0 +1,23 @@
+#环境变量拆分
+library(terra)
+raster<-rast('SSP126_2070/wc2.1_2.5m_bioc_BCC-CSM2-MR_ssp585_2081-2100.tif')
+for (i in 1:19) {raster <- rast('SSP126_2070/wc2.1_2.5m_bioc_BCC-CSM2-MR_ssp585_2081-2100.tif')
+BIO <- raster[[i]]
+writeRaster(BIO, paste0("SSP585_2090_", i, ".tif"), overwrite=TRUE)
+}
+#环境变量提取
+library(raster)
+pops <- read.csv("tws_pot.csv", header = T)
+colnames(pops) <- c('long','lat')
+ssp126_2070 <- stack("SSP126_2070/wc2.1_2.5m_bioc_BCC-CSM2-MR_ssp126_2081-2100.tif")
+names(ssp126_2070)
+
+env_Names=c('wc2.1_2.5m_bioc_BCC.CSM2.MR_ssp126_2081.2100_17','wc2.1_2.5m_bioc_BCC.CSM2.MR_ssp126_2081.2100_15',
+            'wc2.1_2.5m_bioc_BCC.CSM2.MR_ssp126_2081.2100_12','wc2.1_2.5m_bioc_BCC.CSM2.MR_ssp126_2081.2100_2',
+            'wc2.1_2.5m_bioc_BCC.CSM2.MR_ssp126_2081.2100_5','wc2.1_2.5m_bioc_BCC.CSM2.MR_ssp126_2081.2100_9')
+ssp126_2070 <- ssp126_2070[[env_Names]]
+names(ssp126_2070) <- c("bio17","bio15","bio12","bio2","bio5","bio9")
+env_6 <- data.frame(long=pops$long, 
+                    lat=pops$lat, raster::extract(ssp126_2070, 
+                                                  pops[,c("long","lat")]),stringsAsFactors=FALSE)
+write.csv(env_6,"env_7_2081_2100.csv")

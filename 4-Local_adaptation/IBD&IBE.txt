@@ -1,0 +1,31 @@
+library(tidyverse)
+library(vegan)
+gene <- read.table("fst.csv", header = T, row.names = 1) #成对居群遗传分化值矩阵
+geo <- read.table("muer_geodists.csv", header = T, row.names = 1) #成对居群地理距离矩阵
+env <- read.csv("scale.csv", header = T, row.names = 1) #成对居群环境距离矩阵
+mantel1 <- mantel(gene, env, method = "pearson") #基因与环境mantel‘s检验，相关性分析方法皮尔逊
+mantel2 <- mantel(gene, geo, method = "pearson") #基因与地理mantel‘s检验，相关性分析方法皮尔逊
+mantel3 <- mantel(env, geo, method = "pearson") #地理与环境mantel‘s检验，相关性分析方法皮尔逊
+library(ggplot2)
+library(patchwork) #散点图合并
+library(cowplot)
+env_geo <- read.csv("env-geo.csv", header = T) #导入绘制散点图的数据，两列一一对应
+env_gene <- read.csv("gene-env.csv", header = T) #导入绘制散点图的数据，两列一一对应
+gene_geo <- read.csv("gene-geo.csv", header = T) #导入绘制散点图的数据，两列一一对应
+p1 <- ggplot(env_geo, aes(x=distance, y=env))+
+  geom_point()+
+  labs(x = "Geographical Distance (100 km)",y = "Environmental Distance",size = 3)+
+  geom_smooth(method = 'lm', #拟合曲线的统计学方法
+              alpha = 0.2, colour = 'red')+
+  scale_shape(solid = F)+coord_cartesian()+theme_bw()
+p2 <- ggplot(env_gene, aes(x=env, y=Fst))+
+  geom_point()+
+  labs(x = "Environmental Distance",y = expression(italic(F)[italic(ST)]/(1-italic(F)[italic(ST)])),size = 3)+
+  geom_smooth(method = 'lm', alpha = 0.2, colour = 'red')+
+  scale_shape(solid = F)+coord_cartesian()+theme_bw()
+p3 <- ggplot(gene_geo, aes(x=distance, y=Fst))+
+  geom_point()+
+  labs(x = "Geographical Distance (100 km)",y = expression(italic(F)[italic(ST)]/(1-italic(F)[italic(ST)])),size = 3)+
+  geom_smooth(method = 'lm', alpha = 0.2, colour = 'red')+
+  scale_shape(solid = F)+coord_cartesian()+theme_bw()
+p3+p2+p1 #组合图绘制

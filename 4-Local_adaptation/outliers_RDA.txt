@@ -1,0 +1,86 @@
+library(vegan)
+library(psych)
+#导入基因组数据和环境数据
+setwd("D:/台湾杉/RDA")
+gen <- read.csv("TWS012.csv", header = F) #012数据，由vcf转化为012数据
+env <- read.csv("TWS_1.csv",head= T,row.names = 1) #采样居群的19个生物气候变量（bio）
+env <- env[,c(2,5,9,12,15,17)] #用于GAE分析的生物气候变量
+colnames(env) <- c('bio2','bio5','bio9','bio12','bio15','bio17') #添加列名
+AY <- env[1,]
+AY <- rbind(AY,AY,AY,AY,AY,AY,AY,AY,AY,AY)
+CQ <- env[2,]
+CQ <- rbind(CQ,CQ,CQ,CQ,CQ)
+GT <- env[3,]
+GT <- rbind(GT,GT,GT,GT,GT,GT,GT,GT,GT,GT,GT,GT,GT,GT)
+GU <- env[4,]
+GU <- rbind(GU,GU,GU,GU,GU,GU,GU,GU,GU,GU)
+LC <- env[5,]
+LC <- rbind(LC,LC,LC,LC,LC,LC,LC,LC,LC,LC,LC,LC,LC,LC,LC)
+NWL <- env[6,]
+NWL <- rbind(NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL,NWL)
+PN <- env[7,]
+PN <- rbind(PN,PN,PN,PN,PN,PN,PN,PN,PN)
+QQ <- env[8,]
+QQ <- rbind(QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ,QQ)
+TW <- env[9,]
+TW <- rbind(TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW,TW)
+YX <- env[10,]
+YX <- rbind(YX,YX,YX,YX,YX) 
+env <- rbind(AY,CQ,GU,PN,GT,LC,NWL,QQ,TW,YX)
+pk.rda <- rda(gen ~ ., data=env, scale=T) #运行RDA分析
+plot(pk.rda) #绘制RDA结果草图
+load.rda <- scores(pk.rda, choices=c(1:6), display="species") #
+write.csv(load.rda, "outliers_RDA/loaduniq_rda.csv") #
+#识别离群位点的功能，固定不变
+outliers <- function(x,z){
+  lims <- mean(x) + c(-1, 1) * z * sd(x)     # find loadings +/-z sd from mean loading     
+  x[x < lims[1] | x > lims[2]]               # locus names in these tails
+}
+#if you needed to be very conservative and only identify those loci under very strong selection (i.e., minimize false positive rates), you could increase the number of standard deviations to 3.5.
+#数字3代表识别离群位点的阈值，值越大检测到的离群位点越保守，位点也越少
+cand1 <- outliers(load.rda[,1],3) # 数字3代表识别离群位点的阈值，建议选为3，可以依据识别的位点多少来选择阈值
+cand2 <- outliers(load.rda[,2],3) 
+cand3 <- outliers(load.rda[,3],3) 
+cand4 <- outliers(load.rda[,4],3) 
+cand5 <- outliers(load.rda[,5],3) 
+cand6 <- outliers(load.rda[,6],3)
+#转化为数据框，方便导出
+cand1 <- cbind.data.frame(rep(1,times=length(cand1)), names(cand1), unname(cand1))
+cand2 <- cbind.data.frame(rep(2,times=length(cand2)), names(cand2), unname(cand2))
+cand3 <- cbind.data.frame(rep(3,times=length(cand3)), names(cand3), unname(cand3))
+cand4 <- cbind.data.frame(rep(4,times=length(cand4)), names(cand4), unname(cand4))
+cand5 <- cbind.data.frame(rep(5,times=length(cand5)), names(cand5), unname(cand5))
+cand6 <- cbind.data.frame(rep(6,times=length(cand6)), names(cand6), unname(cand6))
+#更改列名，合并检测结果
+colnames(cand1) <- colnames(cand2) <- colnames(cand3) <- colnames(cand4)<- colnames(cand5)<-colnames(cand6) <- c("axis","snp_site","loading")
+cand <- rbind(cand1, cand2, cand3,cand4, cand5, cand6)
+write.csv(cand, "outliers_RDA/outliers_RAD.csv")
+
+ncand <- length(cand1) + length(cand2) + length(cand3)+length(cand4) + length(cand5) + length(cand6)
+cand$snp <- as.character(cand$snp_site)
+foo <- matrix(nrow=(ncand), ncol=6) 
+colnames(foo) <- c('bio2','bio5','bio9','bio12','bio15','bio17')
+gen <- as.data.frame(gen)
+foo <- data.frame()
+for (i in 1:length(cand$snp)) {
+  nam <- cand[i,2]
+  snp.gen <- gen[,nam]
+  foo <- rbind(foo,apply(env,2,function(x)cor(x,snp.gen)))
+}
+colnames(foo) <- c('bio2','bio5','bio9','bio12','bio15','bio17')
+cand <- cbind.data.frame(cand,foo) 
+cand <- cand[!duplicated(cand$snp),]
+colnames(cand)[4] <- "predictor"
+colnames(cand)[5] <- "correlation"
+pdf("outliers_RDA/RDA.pdf")
+write.csv(cand, "outliers_RDA/cand.csv")
+opar<-par(no.readonly=TRUE)
+par(mfrow=c(3,2))
+hist(load.rda[,1], main="Loadings on RDA1")
+hist(load.rda[,2], main="Loadings on RDA2")
+hist(load.rda[,3], main="Loadings on RDA3")
+hist(load.rda[,4], main="Loadings on RDA4")
+hist(load.rda[,5], main="Loadings on RDA5")
+hist(load.rda[,6], main="Loadings on RDA6")
+par(opar)
+dev.off()

@@ -1,0 +1,88 @@
+library(vegan)
+library(ggplot2)
+library(ggrepel)
+library(ggpubr)
+setwd("D:/台湾杉/RDA")
+ALLSNP<- read.csv("ALLSNP.csv",header = F)
+ALLSNP1 <- c(t(ALLSNP))
+fst <- read.csv("fst.csv",header = F)
+fst1 <- c(t(fst))
+GEA <- read.csv("GEA.csv",header = F)
+GEA1 <- c(t(GEA))
+outlier_SNPs <- read.csv("outlier_SNPs.csv",header = F)
+outlier_SNPs1 <- c(t(outlier_SNPs))
+env <- read.csv("TWS_1_19.csv",head= T,row.names = 1) #采样居群的19个生物气候变量（bio）
+env <- env[,c(2,5,9,12,15,17)] #用于GEA分析的生物气候变量
+gen <- read.csv("TWS012.csv",  header = T, row.names = 1)
+fst_dwjy <- gen[,fst1]
+GEA_dwjy <- gen[,GEA1]
+outlier_SNPs_dwjy <- gen[,outlier_SNPs1]
+
+gene <- fst_dwjy #群体等位基因频率
+geo <- read.csv("point.csv") #经纬度坐标
+geo_env <- cbind(geo, env) #合并环境变量和地理变量
+rda <- rda(fst_dwjy ~., env, scale = TRUE) #环境变量作为解释变量
+rda <- rda(fst_dwjy ~., geo, scale = TRUE) #地理变量作为解释变量
+rda <- rda(fst_dwjy ~., geo_env, scale = TRUE) #环境和地理变量作为解释变量
+rda <- rda(fst_dwjy ~bio2 + bio5 + bio9 + bio12 + bio15 + bio17+Condition(Longitude,Latitude)
+           , geo_env, scale = TRUE)
+rda <- rda(fst_dwjy ~Longitude + Latitude+Condition(bio2,bio5,bio9,bio12,bio15,bio17), 
+           geo_env, scale = TRUE)
+
+#summary(rda)
+rda_test <- anova(rda, permutations= 999) #检验模型显著性
+rda_test
+#R2 <- RsquareAdj(rda)$r.squared
+R2adj <- RsquareAdj(rda)$adj.r.squared
+R2adj
+
+rda_test_axis <- anova(rda, by="axis", permutations= 999) #检验RDA轴的显著性
+#rda_test_axis$`Pr(>F)` <- p.adjust(rda_test_axis$`Pr(>F)`, method = "bonferroni")
+rdascore <- scores(rda) #snp、群体、环境变量的RDA1、2轴的值，用于绘图
+#vif.cca(rda)
+#rdascore$sites #
+#rda$CCA$biplot
+rdascore$species #snp的RAD1、2轴的值
+rdascore$biplot
+write.csv(rdascore$sites,file="rda.sample.csv")
+write.csv(rda$CCA$biplot,file="rda.env.csv")
+write.csv(rdascore$species,file="rda.species.csv")
+RDAE <- as.data.frame(rda$CCA$biplot*3)
+
+RDAS1 <- rdascore$sites[,1]*1.2
+RDAS2 <- rdascore$sites[,2]*1.2
+group <- read.csv("geo.csv",header = T, colClasses=c("character"))
+
+group <- group[,1:2]
+group <- as.list(group)
+col <- c( "#4889C2","#339239","#E61C4C")
+plotdata <- data.frame(rownames(rdascore$sites), RDAS1, RDAS2, group$group)
+colnames(plotdata) <- c("sample","RDAS1","RDAS2","group")
+rda1 <- round(rda$CCA$eig[1]/sum(rda$CCA$eig)*100,2)
+rda2 <- round(rda$CCA$eig[2]/sum(rda$CCA$eig)*100,2)
+color1 <- rgb(230,28,76,max=255)
+color1
+#RDA_site <- read.csv("rda.species.csv", header = T, row.names = 1)
+RDA_site <- data.frame(rdascore$species)
+pdf("RDA_plot2.pdf",width = 6,height = 4.8)
+ggplot(plotdata, aes(RDAS1, RDAS2)) +
+  geom_point(aes(fill = group, color = group),size = 2.4) + 
+  geom_point(data=RDA_site,aes(x = RDA2*0.25, y = RDA1*0.25),size = 1.5,
+             color="#525252") +
+  #scale_fill_manual(values = col)+
+  scale_colour_manual(values = c("#4889C2","#339239","#E61C4C"))+
+  #stat_chull(geom = "polygon", aes(group = group, color = group, fill = NA), alpha = 0.05)+ 
+  xlab(paste("RDA1 ( ",rda1,"%"," )", sep = "")) + 
+  ylab(paste("RDA2 ( ",rda2,"%"," )", sep = "")) +
+  geom_segment(data = RDAE, aes(x = 0, y = 0, xend = RDAE[,1], yend = RDAE[,2]),
+               colour = "black", size = 0.6,
+               arrow = arrow(angle = 20, type = "closed", length = unit(0.2, "cm"))) +
+  geom_text_repel(data = RDAE, segment.colour = "black",
+                  aes(x = RDAE[,1], y = RDAE[,2], label = rownames(RDAE)),size=5) +
+  #geom_text_repel(data = plotdata, segment.colour = "black",
+                  #label = rownames(plotdata),size=2) +
+  geom_vline(aes(xintercept = 0), linetype = "dotted") +
+  geom_hline(aes(yintercept = 0), linetype = "dotted") +
+  theme_bw()+theme(panel.grid.major = element_line(colour = NA),
+                   panel.grid.minor = element_blank())
+dev.off()
