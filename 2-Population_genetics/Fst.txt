@@ -1,0 +1,27 @@
+
+
+library(vcfR)
+library(adegenet)
+library(hierfstat)
+kiwipang<-read.vcfR("taiwania.117ind.7505.vcf") #读取vcf
+df<-vcfR2genind(kiwipang) #vcf2genind
+ploidy(df)<-2 #倍型为2
+pop.Kiwipang<-read.table("pop.txt",sep="\t",header=F) #读取群体结构文件，第一列为样本名，第二列为群体名，顺序与vcf文件一致
+all(colnames(kiwipang@gt)[-1] == pop.Kiwipang$V1) #检查文件名
+pop(df)<-pop.Kiwipang$V2 #指定群体
+df$pop #查看群体
+mydf<-genind2hierfstat(df) #genind2hierfstat
+basic.stats(mydf)
+popFst1<-genet.dist(mydf)#计算pairwise Fst,Nei's标准遗传距离
+
+popFst<-as.matrix(popFst1) #转为矩阵
+pheatmap::pheatmap(fst1,cluster_rows = F,cluster_cols = F) #作图
+
+write.table (popFst, file ="fst.txt")#导出fst结果，调整顺序
+
+fst1<-read.table("fst1.txt") #调整顺序后 fst 结果，仅有数据无行列居群名
+colnames(fst1)<-c("CQ","QQ","NWL","AY","GT","GU","YX","PN","LC","TW")
+rownames(fst1)<-c("CQ","QQ","NWL","AY","GT","GU","YX","PN","LC","TW")
+
+pheatmap::pheatmap(fst1,cluster_rows = F,cluster_cols = F) #作图
+
